@@ -41,7 +41,6 @@ func Test_ncTarget_Get(t *testing.T) {
 	type fields struct {
 		name            string
 		getDriver       func(*gomock.Controller, *testing.T) netconf.Driver
-		connected       bool
 		getSchemaClient func(*gomock.Controller, *testing.T) SchemaClient.SchemaClientBound
 		sbiConfig       *config.SBI
 	}
@@ -67,10 +66,10 @@ func Test_ncTarget_Get(t *testing.T) {
 						t.Errorf("error creating response")
 					}
 					d.EXPECT().GetConfig("running", gomock.Any()).Return(&types.NetconfResponse{Doc: responseDoc}, nil)
+					d.EXPECT().IsAlive().AnyTimes().Return(true)
 					return d
 				},
-				name:      "TestDev",
-				connected: true,
+				name: "TestDev",
 				sbiConfig: &config.SBI{
 					NetconfOptions: &config.SBINetconfOptions{
 						IncludeNS:              false,
@@ -238,7 +237,6 @@ func Test_ncTarget_Get(t *testing.T) {
 			tr := &ncTarget{
 				name:             tt.fields.name,
 				driver:           tt.fields.getDriver(mockCtrl, t),
-				connected:        tt.fields.connected,
 				schemaClient:     sc,
 				sbiConfig:        tt.fields.sbiConfig,
 				xml2sdcpbAdapter: netconf.NewXML2sdcpbConfigAdapter(sc),

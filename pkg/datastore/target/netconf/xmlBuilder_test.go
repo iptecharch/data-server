@@ -266,7 +266,7 @@ func TestXMLConfigBuilder_fastForward(t *testing.T) {
 					return err
 				}
 				if d := cmp.Diff(xdoc, expectedResult); d != "" {
-					return fmt.Errorf(d)
+					return fmt.Errorf("%s", d)
 				}
 				return nil
 			},
@@ -317,7 +317,7 @@ func TestXMLConfigBuilder_fastForward(t *testing.T) {
 					return err
 				}
 				if d := cmp.Diff(xdoc, expectedResult); d != "" {
-					return fmt.Errorf(d)
+					return fmt.Errorf("%s", d)
 				}
 				return nil
 			},
@@ -414,7 +414,7 @@ func TestXMLConfigBuilder_fastForward_multipleExecutions(t *testing.T) {
 	}
 	// compare expected and retrieved
 	if d := cmp.Diff(xdoc, expectedResult); d != "" {
-		t.Errorf(d)
+		t.Errorf("%s", d)
 	}
 }
 
@@ -627,7 +627,7 @@ func TestXMLConfigBuilder_AddValue(t *testing.T) {
 					return err
 				}
 				if d := cmp.Diff(xdoc, expectedResult); d != "" {
-					return fmt.Errorf(d)
+					return fmt.Errorf("%s", d)
 				}
 				return nil
 			},
@@ -683,7 +683,7 @@ func TestXMLConfigBuilder_AddValue(t *testing.T) {
 					return err
 				}
 				if d := cmp.Diff(xdoc, expectedResult); d != "" {
-					return fmt.Errorf(d)
+					return fmt.Errorf("%s", d)
 				}
 				return nil
 			},
@@ -909,7 +909,7 @@ func TestXMLConfigBuilder_Delete(t *testing.T) {
 			}
 			fmt.Println(doc)
 			if diff := cmp.Diff(doc, tt.want); diff != "" {
-				t.Errorf(diff)
+				t.Errorf("%s", diff)
 			}
 		})
 	}

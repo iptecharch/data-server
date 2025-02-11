@@ -109,7 +109,7 @@ func DiffDoubleStringPathSlice(s1, s2 [][]string) string {
 }
 
 // GetSchemaClientBound creates a SchemaClientBound mock that responds to certain GetSchema requests
-func GetSchemaClientBound(t *testing.T) (*mockschemaclientbound.MockSchemaClientBound, error) {
+func GetSchemaClientBound(t *testing.T, mockCtrl *gomock.Controller) (*mockschemaclientbound.MockSchemaClientBound, error) {
 
 	x, schema, err := InitSDCIOSchema()
 	if err != nil {
@@ -122,7 +122,6 @@ func GetSchemaClientBound(t *testing.T) (*mockschemaclientbound.MockSchemaClient
 		Version: schema.Version,
 	}
 
-	mockCtrl := gomock.NewController(t)
 	mockscb := mockschemaclientbound.NewMockSchemaClientBound(mockCtrl)
 
 	// make the mock respond to GetSchema requests

@@ -31,6 +31,7 @@ import (
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 
@@ -245,11 +246,23 @@ func (t *gnmiTarget) Set(ctx context.Context, source TargetSource) (*sdcpb.SetDa
 	return schemaSetRsp, nil
 }
 
-func (t *gnmiTarget) Status() string {
+func (t *gnmiTarget) Status() *TargetStatus {
+	result := NewTargetStatus(TargetStatusNotConnected)
+
 	if t == nil || t.target == nil {
-		return "NOT_CONNECTED"
+		result.Details = "connection not initialized"
+		return result
 	}
-	return t.target.ConnState()
+	switch t.target.ConnState() {
+	case connectivity.Ready.String(), connectivity.Idle.String():
+		result.Status = TargetStatusConnected
+		result.Details = t.target.ConnState()
+	case connectivity.Connecting.String(), connectivity.Shutdown.String(), connectivity.TransientFailure.String():
+		result.Status = TargetStatusNotConnected
+		result.Details = t.target.ConnState()
+	}
+
+	return result
 }
 
 func (t *gnmiTarget) Sync(octx context.Context, syncConfig *config.Sync, syncCh chan *SyncUpdate) {

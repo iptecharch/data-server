@@ -17,6 +17,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/openconfig/ygot/ygot"
@@ -694,6 +695,7 @@ func TestDatastore_populateTree(t *testing.T) {
 				cacheClient:  cacheClient,
 				schemaClient: schemaClient,
 			}
+			d.treeCacheSchemaClient = tree.NewTreeSchemaCacheClient(dsName, cacheClient, d.getValidationClient())
 
 			ctx := context.Background()
 
@@ -726,35 +728,46 @@ func TestDatastore_populateTree(t *testing.T) {
 				Delete: tt.intentDelete,
 			}
 
-			tc := tree.NewTreeContext(tree.NewTreeSchemaCacheClient(dsName, d.cacheClient, d.getValidationClient()), tt.intentName)
+			tc := tree.NewTreeContext(d.treeCacheSchemaClient, tt.intentName)
 
-			// Populate the root tree
-			root, err := d.populateTree(ctx, reqOne, tc)
+			root, err := tree.NewTreeRoot(ctx, tc)
 			if err != nil {
 				t.Error(err)
 			}
+
+			updSlice, err := d.expandAndConvertIntent(ctx, reqOne.GetIntent(), reqOne.GetPriority(), reqOne.GetUpdate())
+			if err != nil {
+				t.Error(err)
+			}
+
+			oldIntentContent, err := root.LoadIntendedStoreOwnerData(ctx, reqOne.GetIntent(), false)
+			if err != nil {
+				t.Error(err)
+			}
+
+			loadHighest := oldIntentContent.ToPathSet()
+			loadHighest.Join(updSlice.ToPathSet())
+
+			err = d.loadIntendedStoreHighestPrio(ctx, d.treeCacheSchemaClient, root, loadHighest, []string{reqOne.GetIntent()})
+			if err != nil {
+				t.Error(err)
+			}
+
+			flags := tree.NewUpdateInsertFlags()
+			flags.SetNewFlag()
+			root.AddCacheUpdatesRecursive(ctx, updSlice, flags)
 
 			// populate Tree with running
-			err = d.populateTreeWithRunning(ctx, tc, root)
+			err = d.populateTreeWithRunning(ctx, d.treeCacheSchemaClient, root)
 			if err != nil {
 				t.Error(err)
 			}
 
-			root.FinishInsertionPhase()
+			root.FinishInsertionPhase(ctx)
 
-			validationErrors := []error{}
-			validationErrChan := make(chan error)
-			validationWarnChan := make(chan error)
-			go func() {
-				root.Validate(ctx, validationErrChan, validationWarnChan, false)
-				close(validationErrChan)
-			}()
+			validationResult := root.Validate(ctx, false)
 
-			// read from the Error channel
-			for e := range validationErrChan {
-				validationErrors = append(validationErrors, e)
-			}
-			fmt.Printf("Validation Errors:\n%v\n", validationErrors)
+			fmt.Printf("Validation Errors:\n%v\n", strings.Join(validationResult.ErrorsStr(), "\n"))
 			fmt.Printf("Tree:%s\n", root.String())
 
 			// get the updates that are meant to be send down towards the device
@@ -789,7 +802,6 @@ func TestDatastore_populateTree(t *testing.T) {
 			if diff := testhelper.DiffDoubleStringPathSlice(tt.expectedOwnerDeletes, deletesOwner.ToStringSlice()); diff != "" {
 				t.Errorf("root.GetDeletesForOwner mismatch (-want +got):\n%s", diff)
 			}
-
 		})
 	}
 }

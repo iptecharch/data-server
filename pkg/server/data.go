@@ -15,7 +15,6 @@
 package server
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"time"
@@ -80,36 +79,6 @@ func (s *Server) GetData(req *sdcpb.GetDataRequest, stream sdcpb.DataServer_GetD
 	}
 	wg.Wait()
 	return nil
-}
-
-func (s *Server) SetData(ctx context.Context, req *sdcpb.SetDataRequest) (*sdcpb.SetDataResponse, error) {
-	log.Debugf("received SetDataRequest: %v", req)
-	name := req.GetName()
-	if name == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "missing datastore name")
-	}
-	s.md.RLock()
-	defer s.md.RUnlock()
-	ds, ok := s.datastores[name]
-	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument, "unknown datastore %s", name)
-	}
-	return ds.Set(ctx, req)
-}
-
-func (s *Server) Diff(ctx context.Context, req *sdcpb.DiffRequest) (*sdcpb.DiffResponse, error) {
-	log.Debugf("received DiffRequest: %v", req)
-	name := req.GetName()
-	if name == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "missing datastore name")
-	}
-	s.md.RLock()
-	defer s.md.RUnlock()
-	ds, ok := s.datastores[name]
-	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument, "unknown datastore %s", name)
-	}
-	return ds.Diff(ctx, req)
 }
 
 func (s *Server) Subscribe(req *sdcpb.SubscribeRequest, stream sdcpb.DataServer_SubscribeServer) error {

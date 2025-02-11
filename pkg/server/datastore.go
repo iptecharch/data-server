@@ -29,6 +29,7 @@ import (
 
 	"github.com/sdcio/data-server/pkg/config"
 	"github.com/sdcio/data-server/pkg/datastore"
+	"github.com/sdcio/data-server/pkg/datastore/target"
 )
 
 // datastore
@@ -263,44 +264,6 @@ func (s *Server) DeleteDataStore(ctx context.Context, req *sdcpb.DeleteDataStore
 	}
 }
 
-// func (s *Server) Commit(ctx context.Context, req *sdcpb.CommitRequest) (*sdcpb.CommitResponse, error) {
-// 	log.Debugf("Received CommitDataStoreRequest: %v", req)
-// 	name := req.GetName()
-// 	if name == "" {
-// 		return nil, status.Error(codes.InvalidArgument, "missing datastore name attribute")
-// 	}
-// 	s.md.RLock()
-// 	defer s.md.RUnlock()
-// 	ds, ok := s.datastores[name]
-// 	if !ok {
-// 		return nil, status.Errorf(codes.InvalidArgument, "unknown datastore %s", name)
-// 	}
-// 	err := ds.Commit(ctx, req)
-// 	if err != nil {
-// 		return nil, status.Errorf(codes.Internal, "%v", err)
-// 	}
-// 	return &sdcpb.CommitResponse{}, nil
-// }
-
-func (s *Server) Rebase(ctx context.Context, req *sdcpb.RebaseRequest) (*sdcpb.RebaseResponse, error) {
-	log.Debugf("Received RebaseDataStoreRequest: %v", req)
-	name := req.GetName()
-	if name == "" {
-		return nil, status.Error(codes.InvalidArgument, "missing name attribute")
-	}
-	s.md.RLock()
-	defer s.md.RUnlock()
-	ds, ok := s.datastores[name]
-	if !ok {
-		return nil, status.Errorf(codes.InvalidArgument, "unknown datastore %s", name)
-	}
-	err := ds.Rebase(ctx, req)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
-	}
-	return &sdcpb.RebaseResponse{}, nil
-}
-
 func (s *Server) Discard(ctx context.Context, req *sdcpb.DiscardRequest) (*sdcpb.DiscardResponse, error) {
 	log.Debugf("Received DiscardDataStoreRequest: %v", req)
 	name := req.GetName()
@@ -363,18 +326,13 @@ func (s *Server) datastoreToRsp(ctx context.Context, ds *datastore.Datastore) (*
 		Address: ds.Config().SBI.Address,
 	}
 	// map datastore sbi conn state to sdcpb.TargetStatus
-	switch ds.ConnectionState() {
-	// netconf
-	case "CONNECTED":
+	switch ds.ConnectionState().Status {
+	case target.TargetStatusConnected:
 		rsp.Target.Status = sdcpb.TargetStatus_CONNECTED
-	case "NOT_CONNECTED":
-		// gnmi
-	case "READY", "IDLE":
-		rsp.Target.Status = sdcpb.TargetStatus_CONNECTED
-		rsp.Target.StatusDetails = ds.ConnectionState()
-	default:
+	case target.TargetStatusNotConnected:
 		rsp.Target.Status = sdcpb.TargetStatus_NOT_CONNECTED
-		rsp.Target.StatusDetails = ds.ConnectionState()
+	default:
+		rsp.Target.Status = sdcpb.TargetStatus_UNKNOWN
 	}
 
 	rsp.Schema = ds.Config().Schema.GetSchema()

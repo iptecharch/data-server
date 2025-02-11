@@ -199,59 +199,43 @@ func TestDatastore_validateTree(t *testing.T) {
 				t.Error(err)
 			}
 
-			// prepare the SetintentRequest
-			reqOne := &sdcpb.SetIntentRequest{
-				Name:     dsName,
-				Intent:   tt.intentName,
-				Priority: tt.intentPrio,
-				Update: []*sdcpb.Update{
-					{
-						Path: path,
-						Value: &sdcpb.TypedValue{
-							Value: &sdcpb.TypedValue_JsonVal{
-								JsonVal: []byte(jsonConf)},
-						},
-					},
-				},
-				Delete: tt.intentDelete,
-			}
-
-			// Populate the root tree
-			root, err := d.populateTree(ctx, reqOne, tree.NewTreeContext(tree.NewTreeSchemaCacheClient(dsName, d.cacheClient, d.getValidationClient()), tt.intentName))
+			tc := tree.NewTreeContext(tree.NewTreeSchemaCacheClient(dsName, d.cacheClient, d.getValidationClient()), tt.intentName)
+			root, err := tree.NewTreeRoot(ctx, tc)
 			if err != nil {
 				t.Error(err)
 			}
 
-			root.FinishInsertionPhase()
-
-			validationErrors := []error{}
-			validationErrChan := make(chan error, 20)
-			validationWarnings := []string{}
-			validationWarnChan := make(chan error, 20)
-			go func() {
-				root.Validate(ctx, validationErrChan, validationWarnChan, false)
-				close(validationErrChan)
-				close(validationWarnChan)
-			}()
-
-			// read from the Error channel
-			for e := range validationErrChan {
-				validationErrors = append(validationErrors, e)
+			insertUpdates := []*sdcpb.Update{
+				{
+					Path: path,
+					Value: &sdcpb.TypedValue{
+						Value: &sdcpb.TypedValue_JsonVal{
+							JsonVal: []byte(jsonConf)},
+					},
+				},
 			}
 
-			// read from the Error channel
-			for e := range validationWarnChan {
-				validationWarnings = append(validationWarnings, e.Error())
+			updSlice, err := d.expandAndConvertIntent(ctx, tt.intentName, tt.intentPrio, insertUpdates)
+			if err != nil {
+				t.Error(err)
 			}
+
+			flagsNew := tree.NewUpdateInsertFlags()
+			flagsNew.SetNewFlag()
+			root.AddCacheUpdatesRecursive(ctx, updSlice, flagsNew)
+
+			root.FinishInsertionPhase(ctx)
+
+			validationResult := root.Validate(ctx, false)
 
 			for _, x := range tt.expectedWarnings {
-				if !slices.Contains(validationWarnings, x) {
+				if !slices.Contains(validationResult.WarningsStr(), x) {
 					t.Errorf("Warning %q not emitted.", x)
 				}
 			}
 
-			fmt.Println(validationErrors)
-			fmt.Println(validationWarnings)
+			fmt.Println(validationResult.ErrorsStr())
+			fmt.Println(validationResult.WarningsStr())
 
 			fmt.Printf("Tree:%s\n", root.String())
 		})

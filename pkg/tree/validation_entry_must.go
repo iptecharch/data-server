@@ -6,12 +6,13 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/sdcio/data-server/pkg/types"
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
 	"github.com/sdcio/yang-parser/xpath"
 	"github.com/sdcio/yang-parser/xpath/grammars/expr"
 )
 
-func (s *sharedEntryAttributes) validateMustStatements(ctx context.Context, errchan chan<- error) {
+func (s *sharedEntryAttributes) validateMustStatements(ctx context.Context, resultChan chan<- *types.ValidationResultEntry) {
 
 	// if no schema, then there is nothing to be done, return
 	if s.schema == nil {
@@ -39,7 +40,7 @@ func (s *sharedEntryAttributes) validateMustStatements(ctx context.Context, errc
 		lexer.Parse()
 		prog, err := lexer.CreateProgram(exprStr)
 		if err != nil {
-			errchan <- err
+			resultChan <- types.NewValidationResultEntry(s.leafVariants.GetHighestPrecedence(false, false).Owner(), err, types.ValidationResultEntryTypeError)
 			return
 		}
 		machine := xpath.NewMachine(exprStr, prog, exprStr)
@@ -59,7 +60,7 @@ func (s *sharedEntryAttributes) validateMustStatements(ctx context.Context, errc
 				slog.Debug("stack underflow error: path=%v, mustExpr=%s", s.Path().String(), exprStr)
 				continue
 			}
-			errchan <- err
+			resultChan <- types.NewValidationResultEntry(s.leafVariants.GetHighestPrecedence(false, false).Owner(), err, types.ValidationResultEntryTypeError)
 			return
 		}
 	}

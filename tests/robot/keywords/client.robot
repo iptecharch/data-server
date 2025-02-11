@@ -9,6 +9,7 @@ Documentation       The Library relies on the following variables being availabl
 Library             String
 Library             Process
 Library             OperatingSystem
+Library             Collections
 
 
 *** Keywords ***
@@ -39,6 +40,76 @@ GetDataStore
     Log    ${result.stderr}
     RETURN    ${result}
 
+TransactionSet
+    [Documentation]    Start an intent transaction
+    [Arguments]
+    ...    ${datastore}
+    ...    ${transactionId}
+    ...    @{intents}
+    
+    ${intentargs} =    Create List
+
+    FOR    ${file}    IN    @{intents}
+        Append To List    ${intentargs}    -i    ${file}
+    END
+
+    ${result} =    Run Process
+    ...    ${SDCTL}
+    ...    -a    ${DATA-SERVER-IP}:${DATA-SERVER-PORT}
+    ...    data
+    ...    transaction
+    ...    set
+    ...    --ds
+    ...    ${datastore}
+    ...    --transaction-id
+    ...    ${transactionId}
+    ...    @{intentargs}
+
+    Log    ${result.rc}
+    Log    ${result.stdout}
+    Log    ${result.stderr}
+    RETURN    ${result}
+
+TransactionConfirm
+    [Documentation]    Confirm an ongoing transaction
+    [Arguments]
+    ...    ${datastore}
+    ...    ${transactionId}
+    ${result} =    Run Process
+    ...    ${SDCTL}
+    ...    -a    ${DATA-SERVER-IP}:${DATA-SERVER-PORT}
+    ...    data
+    ...    transaction
+    ...    confirm
+    ...    --ds
+    ...    ${datastore}
+    ...    --transaction-id 
+    ...    ${transactionId}
+    ...    
+    Log    ${result.rc}
+    Log    ${result.stdout}
+    Log    ${result.stderr}
+    RETURN    ${result}
+TransactionCancel
+    [Documentation]    Cancel (Roleback) an ongoing transaction
+    [Arguments]
+    ...    ${datastore}
+    ...    ${transactionId}
+    ${result} =    Run Process
+    ...    ${SDCTL}
+    ...    -a    ${DATA-SERVER-IP}:${DATA-SERVER-PORT}
+    ...    data
+    ...    transaction
+    ...    cancel
+    ...    --ds
+    ...    ${datastore}
+    ...    --transaction-id 
+    ...    ${transactionId}
+    ...    
+    Log    ${result.rc}
+    Log    ${result.stdout}
+    Log    ${result.stderr}
+    RETURN    ${result}
 CreateDataStore
     [Documentation]    Create a target in a data-server
     [Arguments]

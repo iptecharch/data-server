@@ -7,6 +7,7 @@ import (
 	"github.com/beevik/etree"
 	"github.com/sdcio/data-server/pkg/cache"
 	"github.com/sdcio/data-server/pkg/tree/importer"
+	"github.com/sdcio/data-server/pkg/types"
 
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
 )
@@ -17,6 +18,8 @@ const (
 	DefaultsIntentName = "default"
 	RunningValuesPrio  = int32(math.MaxInt32 - 100)
 	RunningIntentName  = "running"
+	ReplaceValuesPrio  = int32(math.MaxInt32 - 110)
+	ReplaceIntentName  = "replace"
 )
 
 type EntryImpl struct {
@@ -48,7 +51,7 @@ type Entry interface {
 	// addChild Add a child entry
 	addChild(context.Context, Entry) error
 	// AddCacheUpdateRecursive Add the given cache.Update to the tree
-	AddCacheUpdateRecursive(ctx context.Context, u *cache.Update, new bool) (Entry, error)
+	AddCacheUpdateRecursive(ctx context.Context, u *cache.Update, flags *UpdateInsertFlags) (Entry, error)
 	// StringIndent debug tree struct as indented string slice
 	StringIndent(result []string) []string
 	// GetHighesPrio return the new cache.Update entried from the tree that are the highes priority.
@@ -61,18 +64,18 @@ type Entry interface {
 	// GetByOwner returns the branches Updates by owner
 	GetByOwner(owner string, result []*LeafEntry) []*LeafEntry
 	// markOwnerDelete Sets the delete flag on all the LeafEntries belonging to the given owner.
-	markOwnerDelete(o string)
+	markOwnerDelete(o string, onlyIntended bool)
 	// GetDeletes returns the cache-updates that are not updated, have no lower priority value left and hence should be deleted completely
 	GetDeletes(entries []DeleteEntry, aggregatePaths bool) ([]DeleteEntry, error)
 	// Walk takes the EntryVisitor and applies it to every Entry in the tree
 	Walk(f EntryVisitor) error
 	// Validate kicks off validation
-	Validate(ctx context.Context, errchan chan<- error, warnChan chan<- error, concurrent bool)
+	Validate(ctx context.Context, resultChan chan<- *types.ValidationResultEntry, concurrent bool)
 	// validateMandatory the Mandatory schema field
-	validateMandatory(errchan chan<- error)
+	validateMandatory(ctx context.Context, resultChan chan<- *types.ValidationResultEntry)
 	// validateMandatoryWithKeys is an internally used function that us called by validateMandatory in case
 	// the container has keys defined that need to be skipped before the mandatory attributes can be checked
-	validateMandatoryWithKeys(level int, attribute string, errchan chan<- error)
+	validateMandatoryWithKeys(ctx context.Context, level int, attribute string, resultChan chan<- *types.ValidationResultEntry)
 	// getHighestPrecedenceValueOfBranch returns the highes Precedence Value (lowest Priority value) of the brach that starts at this Entry
 	getHighestPrecedenceValueOfBranch() int32
 	// GetSchema returns the *sdcpb.SchemaElem of the Entry
@@ -81,7 +84,7 @@ type Entry interface {
 	IsRoot() bool
 	// FinishInsertionPhase indicates, that the insertion of Entries into the tree is over
 	// Hence calculations for e.g. choice/case can be performed.
-	FinishInsertionPhase()
+	FinishInsertionPhase(ctx context.Context)
 	// GetParent returns the parent entry
 	GetParent() Entry
 	// Navigate navigates the tree according to the given path and returns the referenced entry or nil if it does not exist.

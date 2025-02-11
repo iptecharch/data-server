@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sdcio/data-server/pkg/types"
 	"github.com/sdcio/data-server/pkg/utils"
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
 )
@@ -189,7 +190,7 @@ func (s *sharedEntryAttributes) resolve_leafref_key_path(ctx context.Context, ke
 	return nil
 }
 
-func (s *sharedEntryAttributes) validateLeafRefs(ctx context.Context, errchan chan<- error, warnChan chan<- error) {
+func (s *sharedEntryAttributes) validateLeafRefs(ctx context.Context, resultChan chan<- *types.ValidationResultEntry) {
 
 	lref := s.schema.GetField().GetType().GetLeafref()
 	if s.schema == nil || lref == "" {
@@ -200,11 +201,11 @@ func (s *sharedEntryAttributes) validateLeafRefs(ctx context.Context, errchan ch
 	if err != nil || len(entry) == 0 {
 		// check if the OptionalInstance (!require-instances [https://datatracker.ietf.org/doc/html/rfc7950#section-9.9.3])
 		if s.schema.GetField().GetType().GetOptionalInstance() {
-			generateOptionalWarning(ctx, s, lref, errchan, warnChan)
+			generateOptionalWarning(ctx, s, lref, resultChan)
 			return
 		}
 		// if required, issue error
-		errchan <- fmt.Errorf("missing leaf reference: failed resolving leafref %s for %s: %v", lref, s.Path().String(), err)
+		resultChan <- types.NewValidationResultEntry(s.leafVariants.GetHighestPrecedence(false, false).Owner(), fmt.Errorf("missing leaf reference: failed resolving leafref %s for %s: %v", lref, s.Path().String(), err), types.ValidationResultEntryTypeError)
 		return
 	}
 
@@ -215,28 +216,27 @@ func (s *sharedEntryAttributes) validateLeafRefs(ctx context.Context, errchan ch
 
 		// check if the OptionalInstance (!require-instances [https://datatracker.ietf.org/doc/html/rfc7950#section-9.9.3])
 		if s.schema.GetField().GetType().GetOptionalInstance() {
-			generateOptionalWarning(ctx, s, lref, errchan, warnChan)
+			generateOptionalWarning(ctx, s, lref, resultChan)
 			return
 		}
 		// if required, issue error
-		errchan <- fmt.Errorf("missing leaf reference: failed resolving leafref %s for %s to path %s LeafVariant %v", lref, utils.ToXPath(EntryPath, false), s.Path().String(), lv)
+		resultChan <- types.NewValidationResultEntry(lv.Owner(), fmt.Errorf("missing leaf reference: failed resolving leafref %s for %s to path %s LeafVariant %v", lref, utils.ToXPath(EntryPath, false), s.Path().String(), lv), types.ValidationResultEntryTypeError)
 		return
 	}
 }
 
-func generateOptionalWarning(ctx context.Context, s Entry, lref string, errchan chan<- error, warnChan chan<- error) {
+func generateOptionalWarning(ctx context.Context, s Entry, lref string, resultChan chan<- *types.ValidationResultEntry) {
 	lrefval, err := s.getHighestPrecedenceLeafValue(ctx)
 	if err != nil {
-		errchan <- err
+		resultChan <- types.NewValidationResultEntry(lrefval.Owner(), err, types.ValidationResultEntryTypeError)
 		return
 	}
 	tvVal, err := lrefval.Update.Value()
 	if err != nil {
-		errchan <- err
+		resultChan <- types.NewValidationResultEntry(lrefval.Owner(), err, types.ValidationResultEntryTypeError)
 		return
 	}
-
-	warnChan <- fmt.Errorf("leafref %s value %s unable to resolve non-mandatory reference %s", s.Path().String(), utils.TypedValueToString(tvVal), lref)
+	resultChan <- types.NewValidationResultEntry(lrefval.Owner(), fmt.Errorf("leafref %s value %s unable to resolve non-mandatory reference %s", s.Path().String(), utils.TypedValueToString(tvVal), lref), types.ValidationResultEntryTypeWarning)
 }
 
 // lrefPath for the leafref resolution we need to distinguish between already resolved values and not yet resolved xpath statements

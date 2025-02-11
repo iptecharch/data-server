@@ -86,7 +86,11 @@ func (t *noopTarget) Set(ctx context.Context, source TargetSource) (*sdcpb.SetDa
 	return result, nil
 }
 
-func (t *noopTarget) Status() string { return "N/A" }
+func (t *noopTarget) Status() *TargetStatus {
+	return &TargetStatus{
+		Status: TargetStatusConnected,
+	}
+}
 
 func (t *noopTarget) Sync(ctx context.Context, _ *config.Sync, syncCh chan *SyncUpdate) {
 	log.Infof("starting target %s sync", t.name)

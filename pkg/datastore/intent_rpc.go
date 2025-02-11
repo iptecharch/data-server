@@ -21,13 +21,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/sdcio/cache/proto/cachepb"
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/sdcio/data-server/pkg/cache"
@@ -59,40 +56,40 @@ func (d *Datastore) GetIntent(ctx context.Context, req *sdcpb.GetIntentRequest) 
 	return rsp, nil
 }
 
-func (d *Datastore) SetIntent(ctx context.Context, req *sdcpb.SetIntentRequest) (*sdcpb.SetIntentResponse, error) {
-	if !d.intentMutex.TryLock() {
-		return nil, status.Errorf(codes.ResourceExhausted, "datastore %s has an ongoing SetIntentRequest", d.Name())
-	}
-	defer d.intentMutex.Unlock()
+// func (d *Datastore) SetIntent(ctx context.Context, req *sdcpb.SetIntentRequest) (*sdcpb.SetIntentResponse, error) {
+// 	if !d.intentMutex.TryLock() {
+// 		return nil, status.Errorf(codes.ResourceExhausted, "datastore %s has an ongoing SetIntentRequest", d.Name())
+// 	}
+// 	defer d.intentMutex.Unlock()
 
-	log.Infof("received SetIntentRequest: ds=%s intent=%s", req.GetName(), req.GetIntent())
-	now := time.Now().UnixNano()
-	candidateName := fmt.Sprintf("%s-%d", req.GetIntent(), now)
-	err := d.CreateCandidate(ctx, &sdcpb.DataStore{
-		Type:     sdcpb.Type_CANDIDATE,
-		Name:     candidateName,
-		Owner:    req.GetIntent(),
-		Priority: req.GetPriority(),
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		// delete candidate
-		err := d.cacheClient.DeleteCandidate(ctx, d.Name(), candidateName)
-		if err != nil {
-			log.Errorf("%s: failed to delete candidate %s: %v", d.Name(), candidateName, err)
-		}
-	}()
+// 	log.Infof("received SetIntentRequest: ds=%s intent=%s", req.GetName(), req.GetIntent())
+// 	now := time.Now().UnixNano()
+// 	candidateName := fmt.Sprintf("%s-%d", req.GetIntent(), now)
+// 	err := d.CreateCandidate(ctx, &sdcpb.DataStore{
+// 		Type:     sdcpb.Type_CANDIDATE,
+// 		Name:     candidateName,
+// 		Owner:    req.GetIntent(),
+// 		Priority: req.GetPriority(),
+// 	})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer func() {
+// 		// delete candidate
+// 		err := d.cacheClient.DeleteCandidate(ctx, d.Name(), candidateName)
+// 		if err != nil {
+// 			log.Errorf("%s: failed to delete candidate %s: %v", d.Name(), candidateName, err)
+// 		}
+// 	}()
 
-	setIntentResponse, err := d.SetIntentUpdate(ctx, req, candidateName)
-	if err != nil {
-		log.Errorf("%s: failed to SetIntentUpdate: %v", d.Name(), err)
-		return nil, err
-	}
+// 	setIntentResponse, err := d.SetIntentUpdate(ctx, req, candidateName)
+// 	if err != nil {
+// 		log.Errorf("%s: failed to SetIntentUpdate: %v", d.Name(), err)
+// 		return nil, err
+// 	}
 
-	return setIntentResponse, nil
-}
+// 	return setIntentResponse, nil
+// }
 
 func (d *Datastore) ListIntent(ctx context.Context, req *sdcpb.ListIntentRequest) (*sdcpb.ListIntentResponse, error) {
 	intents, err := d.listRawIntent(ctx)
@@ -105,10 +102,7 @@ func (d *Datastore) ListIntent(ctx context.Context, req *sdcpb.ListIntentRequest
 	}, nil
 }
 
-func (d *Datastore) applyIntent(ctx context.Context, candidateName string, source target.TargetSource) (*sdcpb.SetDataResponse, error) {
-	if candidateName == "" {
-		return nil, fmt.Errorf("missing candidate name")
-	}
+func (d *Datastore) applyIntent(ctx context.Context, source target.TargetSource) (*sdcpb.SetDataResponse, error) {
 	var err error
 
 	var rsp *sdcpb.SetDataResponse
@@ -122,7 +116,7 @@ func (d *Datastore) applyIntent(ctx context.Context, candidateName string, sourc
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("datastore %s/%s SetResponse from SBI: %v", d.config.Name, candidateName, rsp)
+	log.Debugf("datastore %s SetResponse from SBI: %v", d.config.Name, rsp)
 
 	return rsp, nil
 }
@@ -226,21 +220,6 @@ func (d *Datastore) deleteRawIntent(ctx context.Context, intentName string, prio
 		},
 		[][]string{{rawIntentName(intentName, priority)}},
 		nil)
-}
-
-func (d *Datastore) cacheUpdateToUpdate(ctx context.Context, cupd *cache.Update) (*sdcpb.Update, error) {
-	scp, err := d.toPath(ctx, cupd.GetPath())
-	if err != nil {
-		return nil, err
-	}
-	val, err := cupd.Value()
-	if err != nil {
-		return nil, err
-	}
-	return &sdcpb.Update{
-		Path:  scp,
-		Value: val,
-	}, nil
 }
 
 func rawIntentName(name string, pr int32) string {

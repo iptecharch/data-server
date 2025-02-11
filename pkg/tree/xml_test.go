@@ -7,10 +7,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openconfig/ygot/ygot"
+	"github.com/sdcio/data-server/mocks/mockcacheclient"
+	"github.com/sdcio/data-server/pkg/cache"
 	"github.com/sdcio/data-server/pkg/utils"
 	"github.com/sdcio/data-server/pkg/utils/testhelper"
 	sdcio_schema "github.com/sdcio/data-server/tests/sdcioygot"
 	sdcpb "github.com/sdcio/sdc-protos/sdcpb"
+	"go.uber.org/mock/gomock"
 )
 
 func TestToXMLTable(t *testing.T) {
@@ -337,17 +340,25 @@ func TestToXMLTable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			scb, err := testhelper.GetSchemaClientBound(t)
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			// mock schema client
+			scb, err := testhelper.GetSchemaClientBound(t, mockCtrl)
 			if err != nil {
 				t.Fatal(err)
 			}
 			owner := "owner1"
 
+			// mock cache client
+			ccMock := mockcacheclient.NewMockClient(mockCtrl)
+			testhelper.ConfigureCacheClientMock(t, ccMock, []*cache.Update{}, []*cache.Update{}, []*cache.Update{}, [][]string{})
+
 			ctx := context.Background()
 
 			converter := utils.NewConverter(scb)
 
-			tc := NewTreeContext(NewTreeSchemaCacheClient("dev1", nil, scb), owner)
+			tc := NewTreeContext(NewTreeSchemaCacheClient("dev1", ccMock, scb), owner)
 			root, err := NewTreeRoot(ctx, tc)
 			if err != nil {
 				t.Fatal(err)
@@ -357,20 +368,20 @@ func TestToXMLTable(t *testing.T) {
 				if err != nil {
 					t.Error(err)
 				}
-				err = addToRoot(ctx, root, existingUpds, false, owner, 5)
+				err = addToRoot(ctx, root, existingUpds, flagsExisting, owner, 5)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			if tt.newConfig != nil {
-				root.markOwnerDelete(owner)
+				root.markOwnerDelete(owner, false)
 
 				newUpds, err := tt.newConfig(ctx, converter)
 				if err != nil {
 					t.Error(err)
 				}
-				err = addToRoot(ctx, root, newUpds, true, owner, 5)
+				err = addToRoot(ctx, root, newUpds, flagsNew, owner, 5)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -380,12 +391,12 @@ func TestToXMLTable(t *testing.T) {
 				if err != nil {
 					t.Error(err)
 				}
-				err = addToRoot(ctx, root, runningUpds, false, RunningIntentName, RunningValuesPrio)
+				err = addToRoot(ctx, root, runningUpds, flagsExisting, RunningIntentName, RunningValuesPrio)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
-			root.FinishInsertionPhase()
+			root.FinishInsertionPhase(ctx)
 			// fmt.Println(root.String())
 
 			xmlDoc, err := root.ToXML(tt.onlyNewOrUpdated, tt.honorNamespace, tt.operationWithNamespace, tt.useOperationRemove)

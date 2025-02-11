@@ -37,8 +37,7 @@ type ncTarget struct {
 	name   string
 	driver netconf.Driver
 
-	m         *sync.Mutex
-	connected bool
+	m *sync.Mutex
 
 	schemaClient     schemaClient.SchemaClientBound
 	sbiConfig        *config.SBI
@@ -49,7 +48,6 @@ func newNCTarget(_ context.Context, name string, cfg *config.SBI, schemaClient s
 	t := &ncTarget{
 		name:             name,
 		m:                new(sync.Mutex),
-		connected:        false,
 		schemaClient:     schemaClient,
 		sbiConfig:        cfg,
 		xml2sdcpbAdapter: netconf.NewXML2sdcpbConfigAdapter(schemaClient),
@@ -60,12 +58,11 @@ func newNCTarget(_ context.Context, name string, cfg *config.SBI, schemaClient s
 	if err != nil {
 		return t, err
 	}
-	t.connected = true
 	return t, nil
 }
 
 func (t *ncTarget) Get(ctx context.Context, req *sdcpb.GetDataRequest) (*sdcpb.GetDataResponse, error) {
-	if !t.connected {
+	if !t.Status().IsConnected() {
 		return nil, fmt.Errorf("not connected")
 	}
 	var source string
@@ -105,7 +102,6 @@ func (t *ncTarget) Get(ctx context.Context, req *sdcpb.GetDataRequest) (*sdcpb.G
 	if err != nil {
 		if strings.Contains(err.Error(), "EOF") {
 			t.Close()
-			t.connected = false
 			go t.reconnect()
 		}
 		return nil, err
@@ -134,9 +130,10 @@ func (t *ncTarget) Get(ctx context.Context, req *sdcpb.GetDataRequest) (*sdcpb.G
 }
 
 func (t *ncTarget) Set(ctx context.Context, source TargetSource) (*sdcpb.SetDataResponse, error) {
-	if !t.connected {
+	if t.Status().IsConnected() {
 		return nil, fmt.Errorf("not connected")
 	}
+
 	switch t.sbiConfig.NetconfOptions.CommitDatastore {
 	case "running":
 		return t.setRunning(source)
@@ -147,14 +144,16 @@ func (t *ncTarget) Set(ctx context.Context, source TargetSource) (*sdcpb.SetData
 	return nil, fmt.Errorf("unknown commit-datastore: %s", t.sbiConfig.NetconfOptions.CommitDatastore)
 }
 
-func (t *ncTarget) Status() string {
+func (t *ncTarget) Status() *TargetStatus {
+	result := NewTargetStatus(TargetStatusNotConnected)
 	if t == nil || t.driver == nil {
-		return "NOT_CONNECTED"
+		result.Details = "connection not initialized"
+		return result
 	}
 	if t.driver.IsAlive() {
-		return "CONNECTED"
+		result.Status = TargetStatusConnected
 	}
-	return "NOT_CONNECTED"
+	return result
 }
 
 func (t *ncTarget) Sync(ctx context.Context, syncConfig *config.Sync, syncCh chan *SyncUpdate) {
@@ -185,7 +184,7 @@ func (t *ncTarget) Sync(ctx context.Context, syncConfig *config.Sync, syncCh cha
 }
 
 func (t *ncTarget) internalSync(ctx context.Context, sc *config.SyncProtocol, force bool, syncCh chan *SyncUpdate) {
-	if !t.connected {
+	if t.Status().IsConnected() {
 		return
 	}
 	// iterate syncConfig
@@ -217,7 +216,6 @@ func (t *ncTarget) internalSync(ctx context.Context, sc *config.SyncProtocol, fo
 		log.Errorf("failed getting config: %T | %v", err, err)
 		if strings.Contains(err.Error(), "EOF") {
 			t.Close()
-			t.connected = false
 			go t.reconnect()
 		}
 		return
@@ -254,7 +252,7 @@ func (t *ncTarget) reconnect() {
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	if t.connected {
+	if t.Status().IsConnected() {
 		return
 	}
 
@@ -268,7 +266,6 @@ func (t *ncTarget) reconnect() {
 			continue
 		}
 		log.Infof("%s: NETCONF reconnected...", t.name)
-		t.connected = true
 		return
 	}
 }
@@ -300,7 +297,6 @@ func (t *ncTarget) setRunning(source TargetSource) (*sdcpb.SetDataResponse, erro
 		log.Errorf("datastore %s failed edit-config: %v", t.name, err)
 		if strings.Contains(err.Error(), "EOF") {
 			t.Close()
-			t.connected = false
 			go t.reconnect()
 			return nil, err
 		}
@@ -360,7 +356,6 @@ func (t *ncTarget) setCandidate(source TargetSource) (*sdcpb.SetDataResponse, er
 		log.Errorf("datastore %s failed edit-config: %v", t.name, err)
 		if strings.Contains(err.Error(), "EOF") {
 			t.Close()
-			t.connected = false
 			go t.reconnect()
 			return nil, err
 		}
@@ -382,7 +377,6 @@ func (t *ncTarget) setCandidate(source TargetSource) (*sdcpb.SetDataResponse, er
 	if err != nil {
 		if strings.Contains(err.Error(), "EOF") {
 			t.Close()
-			t.connected = false
 			go t.reconnect()
 		}
 		return nil, err

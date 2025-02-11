@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -156,6 +157,16 @@ func (s *Server) Serve(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Server) getDataStore(name string) (*datastore.Datastore, error) {
+	s.md.Lock()
+	defer s.md.Unlock()
+	ds, exists := s.datastores[name]
+	if !exists {
+		return nil, fmt.Errorf("unknown datastore %s", name)
+	}
+	return ds, nil
 }
 
 func (s *Server) ServeHTTP() {

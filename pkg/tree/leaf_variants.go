@@ -77,7 +77,7 @@ func (lv *LeafVariants) shouldDelete() bool {
 	for _, l := range lv.les {
 		// if not running is set and not the owner is running then
 		// it should not be deleted
-		if !(l.GetDeleteFlag() || l.Update.Owner() == RunningIntentName) {
+		if !((l.GetDeleteFlag() && !l.GetDeleteOnlyIntendedFlag()) || l.Update.Owner() == RunningIntentName) {
 			return false
 		}
 	}

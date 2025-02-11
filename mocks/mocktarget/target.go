@@ -89,10 +89,10 @@ func (mr *MockTargetMockRecorder) Set(ctx, source any) *gomock.Call {
 }
 
 // Status mocks base method.
-func (m *MockTarget) Status() string {
+func (m *MockTarget) Status() *target.TargetStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status")
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(*target.TargetStatus)
 	return ret0
 }
 

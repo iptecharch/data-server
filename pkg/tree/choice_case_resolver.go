@@ -14,6 +14,17 @@ func (c choiceCasesResolvers) AddChoice(name string) *choiceCasesResolver {
 	return r
 }
 
+func (c choiceCasesResolvers) deepCopy() choiceCasesResolvers {
+	result := choiceCasesResolvers{}
+
+	for k, v := range c {
+		result[k] = v.deepCopy()
+	}
+
+	return result
+
+}
+
 // GetSkipElements returns the list of all choices elements that are not highes priority.
 // The resulting slice is used to skip these elements.
 func (c choiceCasesResolvers) GetSkipElements() []string {
@@ -63,6 +74,23 @@ type choiceCasesResolver struct {
 	elementToCaseMapping map[string]string
 }
 
+func (c *choiceCasesResolver) deepCopy() *choiceCasesResolver {
+	result := &choiceCasesResolver{
+		cases:                map[string]*choicesCase{},
+		elementToCaseMapping: map[string]string{},
+	}
+
+	for k, v := range c.cases {
+		result.cases[k] = v.deepCopy()
+	}
+
+	for k, v := range c.elementToCaseMapping {
+		result.elementToCaseMapping[k] = v
+	}
+
+	return result
+}
+
 // GetElementNames retrieve all the Element names involved in the Choice
 func (c *choiceCasesResolver) GetElementNames() []string {
 	result := make([]string, 0, len(c.cases))
@@ -76,6 +104,16 @@ func (c *choiceCasesResolver) GetElementNames() []string {
 type choicesCase struct {
 	name     string
 	elements map[string]*choicesCaseElement
+}
+
+func (c *choicesCase) deepCopy() *choicesCase {
+	result := &choicesCase{
+		name: c.name,
+	}
+	for k, v := range c.elements {
+		result.elements[k] = v.deepCopy()
+	}
+	return result
 }
 
 func (c *choicesCase) GetLowestPriorityValue() int32 {
@@ -102,6 +140,14 @@ type choicesCaseElement struct {
 	name  string
 	value int32
 	new   bool
+}
+
+func (c *choicesCaseElement) deepCopy() *choicesCaseElement {
+	return &choicesCaseElement{
+		name:  c.name,
+		value: c.value,
+		new:   c.new,
+	}
 }
 
 // newChoiceCasesResolver returns a ready to use choiceCasesResolver.

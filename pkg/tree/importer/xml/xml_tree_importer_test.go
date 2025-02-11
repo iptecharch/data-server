@@ -75,7 +75,7 @@ func TestXmlTreeImporter(t *testing.T) {
 	testhelper.ConfigureCacheClientMock(t, cacheClient, nil, nil, nil, nil)
 
 	dsName := "dev1"
-	scb, err := testhelper.GetSchemaClientBound(t)
+	scb, err := testhelper.GetSchemaClientBound(t, controller)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestXmlTreeImporter(t *testing.T) {
 			}
 			t.Log(root.String())
 
-			root.FinishInsertionPhase()
+			root.FinishInsertionPhase(ctx)
 
 			result, err := root.ToXML(false, false, false, false)
 			if err != nil {

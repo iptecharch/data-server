@@ -32,12 +32,13 @@ import (
 const ()
 
 type Config struct {
-	GRPCServer   *GRPCServer                     `yaml:"grpc-server,omitempty" json:"grpc-server,omitempty"`
-	SchemaStore  *schemaConfig.SchemaStoreConfig `yaml:"schema-store,omitempty" json:"schema-store,omitempty"`
-	Datastores   []*DatastoreConfig              `yaml:"datastores,omitempty" json:"datastores,omitempty"`
-	SchemaServer *RemoteSchemaServer             `yaml:"schema-server,omitempty" json:"schema-server,omitempty"`
-	Cache        *CacheConfig                    `yaml:"cache,omitempty" json:"cache,omitempty"`
-	Prometheus   *PromConfig                     `yaml:"prometheus,omitempty" json:"prometheus,omitempty"`
+	GRPCServer                *GRPCServer                     `yaml:"grpc-server,omitempty" json:"grpc-server,omitempty"`
+	SchemaStore               *schemaConfig.SchemaStoreConfig `yaml:"schema-store,omitempty" json:"schema-store,omitempty"`
+	Datastores                []*DatastoreConfig              `yaml:"datastores,omitempty" json:"datastores,omitempty"`
+	SchemaServer              *RemoteSchemaServer             `yaml:"schema-server,omitempty" json:"schema-server,omitempty"`
+	Cache                     *CacheConfig                    `yaml:"cache,omitempty" json:"cache,omitempty"`
+	Prometheus                *PromConfig                     `yaml:"prometheus,omitempty" json:"prometheus,omitempty"`
+	DefaultTransactionTimeout time.Duration                   `yaml:"transaction-timeout,omitempty" json:"transaction-timeout,omitempty"`
 }
 
 type TLS struct {
@@ -122,6 +123,10 @@ func (c *Config) validateSetDefaults() error {
 	}
 	if err = c.Cache.validateSetDefaults(); err != nil {
 		return err
+	}
+
+	if c.DefaultTransactionTimeout == 0 {
+		c.DefaultTransactionTimeout = 5 * time.Minute
 	}
 	return nil
 }

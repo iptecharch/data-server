@@ -32,11 +32,32 @@ const (
 	targetTypeGNMI    = "gnmi"
 )
 
+type TargetStatus struct {
+	Status  TargetConnectionStatus
+	Details string
+}
+
+func NewTargetStatus(status TargetConnectionStatus) *TargetStatus {
+	return &TargetStatus{
+		Status: status,
+	}
+}
+func (ts *TargetStatus) IsConnected() bool {
+	return ts.Status == TargetStatusConnected
+}
+
+type TargetConnectionStatus string
+
+const (
+	TargetStatusConnected    TargetConnectionStatus = "connected"
+	TargetStatusNotConnected TargetConnectionStatus = "not connected"
+)
+
 type Target interface {
 	Get(ctx context.Context, req *sdcpb.GetDataRequest) (*sdcpb.GetDataResponse, error)
 	Set(ctx context.Context, source TargetSource) (*sdcpb.SetDataResponse, error)
 	Sync(ctx context.Context, syncConfig *config.Sync, syncCh chan *SyncUpdate)
-	Status() string
+	Status() *TargetStatus
 	Close() error
 }
 
